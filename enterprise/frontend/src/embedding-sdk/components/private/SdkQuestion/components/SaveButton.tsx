@@ -29,7 +29,7 @@ export const shouldShowSaveButton = ({
 }) => {
   const canSave = question && Lib.canSave(question.query(), question.type());
   const isQuestionChanged = originalQuestion
-    ? question && question.isQueryDirtyComparedTo(originalQuestion)
+    ? question && question.isDirtyComparedTo(originalQuestion)
     : true;
 
   return Boolean(isQuestionChanged && canSave);
