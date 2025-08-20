@@ -223,10 +223,9 @@ export const EmbedFrame = ({
                   {dashboard && pdfDownloadsEnabled && (
                     <ExportAsPdfButton
                       className={cx({
-                        [EmbedFrameS.CompactExportAsPdfButton]:
-                          !titled && (hasVisibleParameters || hasDashboardTabs),
+                        [EmbedFrameS.CompactExportAsPdfButton]: !titled,
                         [EmbedFrameS.ParametersVisibleWithNoTabs]:
-                          hasVisibleParameters && !hasDashboardTabs,
+                          !titled && hasVisibleParameters && !hasDashboardTabs,
                       })}
                     />
                   )}
