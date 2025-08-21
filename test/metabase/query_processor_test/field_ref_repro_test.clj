@@ -119,8 +119,8 @@
                {:name "BODY", :display-name "Body", :selected? true}
                {:name "CREATED_AT", :display-name "Created At", :selected? true}
                      ;; the following two Card 1 → ID should have :selected? true
-               {:name "ID", :display-name "Card 1 → ID", :selected? false}
-               {:name "ID_2", :display-name "Card 1 → ID", :selected? false}
+               {:name "ID", :display-name "Card 1 → ID", :selected? true}
+               {:name "ID_2", :display-name "Card 1 → ID", :selected? true}
                      ;; these are implicitly joinable fields, :selected? false is right
                {:name "ID", :display-name "ID", :selected? false}
                {:name "EAN", :display-name "Ean", :selected? false}
