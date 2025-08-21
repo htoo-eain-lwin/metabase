@@ -2,18 +2,22 @@
   (:require
    #?@(:cljs ([metabase.test-runner.assert-exprs.approximately-equal]))
    [clojure.pprint :as pprint]
+   [clojure.string]
    [clojure.test :refer [are deftest is testing]]
    [clojure.test.check.generators :as gen]
    [malli.generator :as mg]
    [medley.core :as m]
    [metabase.lib.core :as lib]
    [metabase.lib.equality :as lib.equality]
+   [metabase.lib.join :as lib.join]
    [metabase.lib.metadata :as lib.metadata]
    [metabase.lib.metadata.calculation :as lib.metadata.calculation]
    [metabase.lib.options :as lib.options]
    [metabase.lib.ref :as lib.ref]
    [metabase.lib.test-metadata :as meta]
    [metabase.lib.test-util :as lib.tu]
+   [metabase.query-processor.test-util :as qp.test-util]
+   [metabase.test :as mt]
    [metabase.util :as u]
    [metabase.util.malli.registry :as mr]))
 
@@ -910,6 +914,59 @@
                    -1
                    (lib/visible-columns query)
                    (lib/returned-columns query)))))))))
+
+(deftest ^:parallel mark-selected-columns-works-for-self-join-test
+  (testing "mark-selected-columns should work correctly for self-joins (#60583)"
+    (let [query (lib.tu/query-with-self-join)
+          vis-cols (lib/visible-columns query)
+          ret-cols (lib/returned-columns query)
+          marked-cols (lib.equality/mark-selected-columns query -1 vis-cols ret-cols)]
+      (testing "returned columns should be found and marked as selected in visible columns"
+        ;; All returned columns should have a match in visible columns
+        (is (every? #(lib.equality/find-matching-column query -1 (lib.ref/ref %) vis-cols) ret-cols)
+            "All returned columns should be findable in visible columns")
+        
+        ;; The marked columns should have same number of selected as returned columns
+        (is (= (count ret-cols) (count (filter :selected? marked-cols)))
+            "Number of selected visible columns should equal number of returned columns")
+        
+        ;; Each returned column should have a corresponding selected visible column
+        (doseq [ret-col ret-cols]
+          (let [matching-vis-col (lib.equality/find-matching-column query -1 (lib.ref/ref ret-col) marked-cols)]
+            (is (some? matching-vis-col)
+                (str "Returned column should have matching visible column: " (:name ret-col)))
+            (is (:selected? matching-vis-col)
+                (str "Matching visible column should be selected: " (:name ret-col))))))))
+
+  (testing "mark-selected-columns should work when joining a saved question with self-join (#27521)"
+    ;; This reproduces the scenario from field_ref_repro_test.clj
+    (let [mp (qp.test-util/metadata-provider-with-cards-with-metadata-for-queries
+              [(mt/mbql-query orders
+                 {:joins [{:source-table $$orders
+                           :alias "o"
+                           :fields [&o.orders.id]
+                           :condition [:= $id &o.orders.id]}]
+                  :fields [$id]})])
+          card-meta (lib.metadata/card mp 1)
+          id-col    (m/find-first (comp #{"ID"} :name)
+                                  (lib/returned-columns (lib/query mp card-meta)))
+          query     (-> (lib/query mp (lib.metadata/table mp (mt/id :reviews)))
+                        (lib/join (lib.join/join-clause card-meta
+                                                        [(lib/= (lib.metadata/field mp (mt/id :reviews :id))
+                                                                id-col)])))
+          visible   (lib.metadata.calculation/visible-columns query -1)
+          returned  (lib.metadata.calculation/returned-columns query -1)
+          marked    (lib.equality/mark-selected-columns query -1 visible returned)
+          card-cols (filter #(clojure.string/includes? (:display-name %) "Card 1") marked)]
+      (testing "columns from saved question with self-join should be marked as selected"
+        (is (every? :selected? card-cols)
+            "All columns from the saved question should be selected"))
+      (testing "specifically the ID columns should be selected"
+        (let [id-card-cols (filter #(and (clojure.string/includes? (:display-name %) "Card 1")
+                                          (clojure.string/includes? (:display-name %) "ID"))
+                                   marked)]
+          (is (= 2 (count id-card-cols)) "Should have 2 ID columns from the card")
+          (is (every? :selected? id-card-cols) "Both ID columns should be selected"))))))
 
 (deftest ^:parallel find-matching-ref-join-test
   (testing "Support same-stage matching for columns and refs from a join"

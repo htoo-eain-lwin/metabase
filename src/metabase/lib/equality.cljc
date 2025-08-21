@@ -555,6 +555,9 @@
            matching-selected-cols (into #{}
                                         (keep (fn [field-ref]
                                                 (or (find-matching-column query stage-number field-ref cols)
+                                                    ;; Try generous matching as fallback for columns from saved questions
+                                                    ;; with self-joins (#60583)
+                                                    (find-matching-column query stage-number field-ref cols {:generous? true})
                                                     (do
                                                       (log/warnf "[mark-selected-columns] failed to find match for %s" (pr-str field-ref))
                                                       nil))))
